@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Projects — Godot Dev Portal{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Projects</h1>
+  <a href="/projects/new" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded text-sm font-medium transition">
+    + New Project
+  </a>
+</div>
+
+{% if projects %}
+<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  {% for p in projects %}
+  <a href="/projects/{{ p.id }}" class="block bg-dark-800 border border-dark-600 rounded-lg p-5 hover:border-purple-500 transition group">
+    <h2 class="text-lg font-semibold text-purple-300 group-hover:text-purple-200">{{ p.name }}</h2>
+    {% if p.description %}
+    <p class="text-dark-300 text-sm mt-1 line-clamp-2">{{ p.description }}</p>
+    {% endif %}
+    <div class="mt-3 flex items-center gap-3 text-xs text-dark-400">
+      <span>📁 {{ p.godot_project_path.split('/')[-2] if '/' in p.godot_project_path else p.godot_project_path }}</span>
+      <span>🔄 {{ p.iterations|length }} iterations</span>
+      <span>{{ p.updated_at.strftime('%Y-%m-%d') }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16 text-dark-400">
+  <p class="text-4xl mb-4">📦</p>
+  <p class="text-lg">No projects yet</p>
+  <a href="/projects/new" class="inline-block mt-4 bg-purple-600 hover:bg-purple-500 px-5 py-2 rounded text-sm transition">
+    Create your first project
+  </a>
+</div>
+{% endif %}
+
+{% endblock %}

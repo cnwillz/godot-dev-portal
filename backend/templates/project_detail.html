@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — Godot Dev Portal{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <a href="/projects" class="text-dark-400 hover:text-dark-200 text-sm">← Back to projects</a>
+</div>
+
+<div class="flex items-start justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold">{{ project.name }}</h1>
+    {% if project.description %}
+    <p class="text-dark-300 mt-1">{{ project.description }}</p>
+    {% endif %}
+    <div class="flex gap-4 mt-2 text-xs text-dark-400">
+      <span>📁 {{ project.godot_project_path }}</span>
+      <span>🎬 {{ project.godot_scene }}</span>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <a href="/projects/{{ project.id }}/edit" class="bg-dark-600 hover:bg-dark-500 px-3 py-1.5 rounded text-sm transition">Edit</a>
+    <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Delete this project?')">
+      <button class="bg-red-800 hover:bg-red-700 px-3 py-1.5 rounded text-sm transition">Delete</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Iterations ────────────────────────────────────────────────────────── -->
+
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold">Iterations</h2>
+    <button
+      onclick="document.getElementById('new-iteration-form').classList.toggle('hidden')"
+      class="text-purple-400 hover:text-purple-300 text-sm"
+    >+ New Iteration</button>
+  </div>
+
+  <form id="new-iteration-form" method="post" action="/projects/{{ project.id }}/iterations/new" class="hidden mb-4 flex gap-2">
+    <input type="text" name="name" placeholder="Iteration name" required
+      class="flex-1 bg-dark-700 border border-dark-500 rounded px-3 py-1.5 text-sm text-dark-100">
+    <input type="text" name="description" placeholder="Brief description"
+      class="flex-1 bg-dark-700 border border-dark-500 rounded px-3 py-1.5 text-sm text-dark-100">
+    <button class="bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded text-sm">Create</button>
+  </form>
+
+  {% if project.iterations %}
+  <div class="space-y-4">
+    {% for iter in project.iterations %}
+    <div class="bg-dark-700 border border-dark-500 rounded-lg p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <h3 class="font-medium">{{ iter.name }}</h3>
+          <span class="text-xs px-2 py-0.5 rounded {%
+            if iter.status.value == 'done' %}bg-green-800 text-green-200{%
+            elif iter.status.value == 'active' %}bg-blue-800 text-blue-200{%
+            else %}bg-dark-500 text-dark-200{% endif %}">
+            {{ iter.status.value }}
+          </span>
+        </div>
+        <div class="flex gap-2">
+          {% if iter.status.value != 'done' %}
+          <form method="post" action="/projects/{{ project.id }}/iterations/{{ iter.id }}/status" class="inline-flex gap-1">
+            {% if iter.status.value == 'draft' %}
+            <input type="hidden" name="status" value="active">
+            <button class="text-blue-400 hover:text-blue-300 text-xs">Activate</button>
+            {% elif iter.status.value == 'active' %}
+            <input type="hidden" name="status" value="done">
+            <button class="text-green-400 hover:text-green-300 text-xs">Complete</button>
+            {% endif %}
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% if iter.description %}
+      <p class="text-dark-400 text-xs mb-2">{{ iter.description }}</p>
+      {% endif %}
+
+      <!-- Reports summary -->
+      {% if iter.reports %}
+      <div class="flex gap-2 mb-2">
+        {% for r in iter.reports[:5] %}
+        <span class="text-xs px-1.5 py-0.5 rounded {% if r.passed %}bg-green-900 text-green-200{% else %}bg-red-900 text-red-200{% endif %}">
+          {{ r.type }}{% if r.passed %}✅{% else %}❌{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Tasks -->
+      {% if iter.tasks %}
+      <div class="space-y-1 mt-2">
+        {% for task in iter.tasks %}
+        <div class="flex items-center justify-between text-sm py-1">
+          <div class="flex items-center gap-2">
+            <span class="{% if task.status.value == 'done' %}line-through text-dark-400{% else %}text-dark-200{% endif %}">
+              {{ task.title }}
+            </span>
+            <span class="text-xs px-1.5 py-0.5 rounded {%
+              if task.status.value == 'done' %}bg-green-900 text-green-200{%
+              elif task.status.value == 'doing' %}bg-yellow-800 text-yellow-200{%
+              else %}bg-dark-600 text-dark-300{% endif %}">
+              {{ task.status.value }}
+            </span>
+          </div>
+          <div class="flex gap-1">
+            <form method="post" action="/projects/{{ project.id }}/iterations/{{ iter.id }}/tasks/{{ task.id }}/status" class="inline">
+              {% if task.status.value == 'todo' %}
+              <input type="hidden" name="status" value="doing">
+              <button class="text-yellow-400 hover:text-yellow-300 text-xs">Start</button>
+              {% elif task.status.value == 'doing' %}
+              <input type="hidden" name="status" value="done">
+              <button class="text-green-400 hover:text-green-300 text-xs">Done</button>
+              {% endif %}
+            </form>
+            {% if task.status.value != 'done' %}
+            <form method="post" action="/projects/{{ project.id }}/iterations/{{ iter.id }}/tasks/{{ task.id }}/delete" class="inline">
+              <button class="text-red-400 hover:text-red-300 text-xs">✕</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Add task form -->
+      <form method="post" action="/projects/{{ project.id }}/iterations/{{ iter.id }}/tasks/new" class="mt-2 flex gap-2">
+        <input type="text" name="title" placeholder="New task..." required
+          class="flex-1 bg-dark-800 border border-dark-500 rounded px-2 py-1 text-xs text-dark-100">
+        <button class="text-purple-400 hover:text-purple-300 text-xs">+ Add</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-dark-400 text-sm text-center py-6">No iterations yet. Create one to start tracking development.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

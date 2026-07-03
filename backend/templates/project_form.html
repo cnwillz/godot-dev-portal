@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if project else 'New' }} Project — Godot Dev Portal{% endblock %}
+{% block content %}
+
+<div class="max-w-2xl mx-auto">
+  <div class="mb-6">
+    <a href="/projects" class="text-dark-400 hover:text-dark-200 text-sm">← Back to projects</a>
+  </div>
+
+  <h1 class="text-2xl font-bold mb-6">{{ 'Edit' if project else 'New' }} Project</h1>
+
+  <form method="post" action="{{ '/projects/%d/edit' % project.id if project else '/projects/new' }}" class="bg-dark-800 border border-dark-600 rounded-lg p-6 space-y-4">
+    <div>
+      <label class="block text-sm text-dark-300 mb-1">Name *</label>
+      <input type="text" name="name" value="{{ project.name if project else '' }}" required
+        class="w-full bg-dark-700 border border-dark-500 rounded px-3 py-2 text-sm text-dark-100">
+    </div>
+    <div>
+      <label class="block text-sm text-dark-300 mb-1">Description</label>
+      <textarea name="description" rows="3"
+        class="w-full bg-dark-700 border border-dark-500 rounded px-3 py-2 text-sm text-dark-100">{{ project.description if project else '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-sm text-dark-300 mb-1">Godot Project Path *</label>
+      <input type="text" name="godot_project_path" value="{{ project.godot_project_path if project else '' }}"
+        placeholder="/Users/.../my-game" required
+        class="w-full bg-dark-700 border border-dark-500 rounded px-3 py-2 text-sm text-dark-100">
+      <p class="text-dark-400 text-xs mt-1">Absolute path to the Godot project directory</p>
+    </div>
+    <div>
+      <label class="block text-sm text-dark-300 mb-1">Godot Scene</label>
+      <input type="text" name="godot_scene" value="{{ project.godot_scene if project else 'res://scenes/game.tscn' }}"
+        class="w-full bg-dark-700 border border-dark-500 rounded px-3 py-2 text-sm text-dark-100">
+    </div>
+    <div class="flex justify-end gap-3 pt-2">
+      <a href="/projects" class="bg-dark-600 hover:bg-dark-500 px-4 py-2 rounded text-sm transition">Cancel</a>
+      <button class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded text-sm transition">
+        {{ 'Save' if project else 'Create' }}
+      </button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

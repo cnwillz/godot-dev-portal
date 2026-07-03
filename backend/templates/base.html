@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Godot Dev Portal{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: { 50: '#f8fafc', 100: '#e2e8f0', 200: '#cbd5e1', 300: '#94a3b8',
+                    400: '#64748b', 500: '#475569', 600: '#334155', 700: '#1e293b',
+                    800: '#0f172a', 900: '#020617' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-dark-900 text-dark-100 min-h-screen">
+  <nav class="bg-dark-800 border-b border-dark-600 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <a href="/" class="text-lg font-bold text-purple-400 hover:text-purple-300">
+        🎮 Godot Dev Portal
+      </a>
+      <a href="/projects" class="text-dark-200 hover:text-white text-sm">Projects</a>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+</body>
+</html>
