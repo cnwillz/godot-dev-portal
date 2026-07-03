@@ -1,208 +1,130 @@
 """
-ci_runner.py — 调用 godot-docker-ci 镜像执行自动化测试。
+ci_runner.py — 通过 Hermes CLI 执行自动化测试。
 
-流程：
-1. 启动 Docker 容器（挂载项目目录到 /project）
-2. 捕获 stdout/stderr 作为日志行
-3. 容器退出后解析 JSON 输出
-4. 将报告存入数据库
+不再直接调 Docker。改为调用：
+  hermes chat -q "load godot-docker-ci; run tests for /project/..."
+
+由 Hermes 自行管理容器生命周期，Portal 只捕获输出。
 """
 from __future__ import annotations
 import json
-import os
-import re
 import time
-from pathlib import Path
-from typing import AsyncGenerator, Optional
-
-import docker
-from docker.errors import DockerException, NotFound
+from typing import AsyncGenerator
 
 from config import settings
 from models import Iteration, Project, Report, ReportType
+from services.hermes_client import HermesClient
 
 
 class CiRunner:
-    """Manages a single test run for a project iteration."""
+    """通过 Hermes 执行一次测试运行。"""
 
     def __init__(self, project: Project, iteration: Iteration):
         self.project = project
         self.iteration = iteration
-        self.container_id: Optional[str] = None
-        self._client: Optional[docker.DockerClient] = None
-
-    # ── Public API ──────────────────────────────────────────────────────
+        self._hermes = HermesClient()
 
     async def stream_logs(self) -> AsyncGenerator[dict, None]:
-        """
-        Run the container and yield log events as dicts:
+        """执行测试，逐行输出结果。"""
 
-          {"type": "log", "line": "...", "timestamp": ...}
-          {"type": "complete", "passed": True, "report_id": 1, "summary": {...}}
-          {"type": "error", "message": "..."}
-        """
-        client = self._get_client()
-        project_path = Path(self.project.godot_project_path)
-        if not project_path.is_dir():
-            yield {"type": "error", "message": f"Project path not found: {project_path}"}
-            return
+        # 构造 Hermes 提示词
+        prompt = self._build_test_prompt()
 
-        cmd = [
-            "node", "/godot-ci/godot-ci.js",
-            "-g", "/usr/local/bin/godot",
-            "-p", "/project",
-            "--json",
-        ]
-        if self.project.godot_scene:
-            cmd.extend(["-s", self.project.godot_scene])
+        yield {"type": "log", "line": "🚀 Dispatching to Hermes...", "timestamp": time.time()}
+        yield {"type": "log", "line": f"📁 Project: {self.project.godot_project_path}", "timestamp": time.time()}
+        yield {"type": "log", "line": f"🎬 Scene: {self.project.godot_scene}", "timestamp": time.time()}
 
-        env = {}
+        env_args = ""
         if settings.vision_api_key:
-            env["VISION_API_KEY"] = settings.vision_api_key
+            env_args = f"VISION_API_KEY={settings.vision_api_key}"
 
-        try:
-            container = client.containers.run(
-                image=settings.godot_ci_image,
-                command=cmd,
-                working_dir="/project",
-                volumes={str(project_path.resolve()): {"bind": "/project", "mode": "rw"}},
-                environment=env,
-                detach=True,
-                auto_remove=False,
-                mem_limit="2g",
-            )
-            self.container_id = container.id
+        full_output = ""
 
-            # Stream logs
-            raw_log = ""
-            for log_line in container.logs(stream=True, follow=True):
-                line = log_line.decode("utf-8", errors="replace").rstrip("\n")
-                raw_log += line + "\n"
-                yield {"type": "log", "line": line, "timestamp": time.time()}
+        async for event in self._hermes.execute(
+            prompt=prompt,
+            skills=["godot-docker-ci"],
+            timeout=600,
+        ):
+            if event["type"] == "log":
+                full_output += event["line"] + "\n"
+            yield event
 
-            # Wait for exit
-            result = container.wait(timeout=300)
-            exit_code = result.get("StatusCode", 1)
-            passed = exit_code == 0
+            if event["type"] == "complete":
+                result = event.get("result", {})
+                passed = result.get("passed", event.get("exit_code", 1) == 0)
 
-            # Parse JSON output from logs
-            summary = self._parse_json_output(raw_log)
+                # 存报告
+                report_id = self._store_report(passed, result, full_output)
 
-            # Copy screenshots & reports from container
-            report_dir = self._collect_artifacts(container, project_path, raw_log)
+                yield {
+                    "type": "complete",
+                    "passed": passed,
+                    "report_id": report_id,
+                    "summary": result,
+                    "exit_code": event.get("exit_code", 1),
+                }
+                return
 
-            # Store in DB
-            report_id = self._store_report(passed, summary, report_dir, raw_log)
+            if event["type"] == "error":
+                yield {
+                    "type": "complete",
+                    "passed": False,
+                    "report_id": None,
+                    "summary": {"error": event["message"]},
+                    "exit_code": 1,
+                }
+                return
 
-            yield {
-                "type": "complete",
-                "passed": passed,
-                "report_id": report_id,
-                "summary": summary,
-                "exit_code": exit_code,
-            }
+    def _build_test_prompt(self) -> str:
+        """构造传给 Hermes 的提示词。"""
+        project_path = self.project.godot_project_path
+        scene = self.project.godot_scene
 
-        except DockerException as e:
-            yield {"type": "error", "message": f"Docker error: {e}"}
-        except Exception as e:
-            yield {"type": "error", "message": f"Unexpected error: {e}"}
-        finally:
-            self._cleanup()
+        return (
+            f"load godot-docker-ci skill; "
+            f"run the full automated test pipeline for the Godot project at {project_path} "
+            f"using scene {scene}. "
+            f"Execute: unit tests, screenshot capture, visual validation, and interaction sequence. "
+            f"Output the final JSON result so the portal can parse it. "
+            f"Do NOT ask any questions — execute immediately."
+        )
 
-    # ── Internal ────────────────────────────────────────────────────────
-
-    def _get_client(self) -> docker.DockerClient:
-        if self._client is None:
-            self._client = docker.from_env()
-        return self._client
-
-    def _parse_json_output(self, raw_log: str) -> dict:
-        """Try to find JSON output in the logs (from --json flag)."""
-        import re
-        # Look for a complete JSON object — the CLI outputs it at the end
-        # Try matching with regex for a top-level JSON object
-        json_match = re.search(r'\{[^{}]*"passed"[^{}]*\}', raw_log, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-
-        # Try a more aggressive search — find the last block that looks like JSON
-        lines = raw_log.splitlines()
-        for i in range(len(lines) - 1, -1, -1):
-            line = lines[i].strip()
-            if line.startswith("{") and line.endswith("}"):
-                try:
-                    return json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-        # Fallback: parse stage indicators from text output
-        summary = {"passed": False, "stages": {}, "artifacts": {}}
-        stages_found = re.findall(r"(unit|snap|vision|seq):([✅❌])", raw_log)
-        for stage, icon in stages_found:
-            summary["stages"][stage] = icon == "✅"
-        # Also check for overall pass/fail
-        if re.search(r"✅ PASS\s+\(", raw_log):
-            summary["passed"] = True
-        return summary
-
-    def _collect_artifacts(self, container, project_path: Path, raw_log: str) -> Optional[Path]:
-        """Copy report files from container to local data directory."""
-        report_dir = settings.reports_path / f"run_{int(time.time())}"
-        os.makedirs(report_dir, exist_ok=True)
-
-        try:
-            # Try to copy reports directory from container
-            # The container outputs to /project/reports/ci-*/
-            bits, _ = container.get_archive("/project/reports")
-            import tarfile
-            import io
-            tar_stream = io.BytesIO()
-            for chunk in bits:
-                tar_stream.write(chunk)
-            tar_stream.seek(0)
-            with tarfile.open(fileobj=tar_stream) as tar:
-                tar.extractall(path=str(report_dir))
-        except (NotFound, DockerException):
-            # No reports in container — that's OK, some CI runs may have no output
-            pass
-
-        return report_dir if report_dir.exists() and any(report_dir.iterdir()) else None
-
-    def _store_report(self, passed: bool, summary: dict, report_dir: Optional[Path], raw_log: str) -> int:
-        """Create Report records from test results."""
+    def _store_report(self, passed: bool, result: dict, raw_output: str) -> int:
+        """将测试结果存入数据库。"""
         from database import SessionLocal
         db = SessionLocal()
         try:
-            stages = summary.get("stages", {})
-            # Create individual stage reports if available
+            stages = result.get("stages", {})
             for stage_name, stage_passed in stages.items():
                 if isinstance(stage_passed, bool):
                     try:
                         report_type = ReportType(stage_name)
                     except ValueError:
                         continue
+                    try:
+                        stage_detail = json.dumps({stage_name: stage_passed})
+                    except (TypeError, ValueError):
+                        stage_detail = str(stage_passed)
                     report = Report(
                         iteration_id=self.iteration.id,
                         type=report_type,
                         passed=stage_passed,
-                        details=json.dumps(stages.get(stage_name, {})),
-                        screenshots_path=str(report_dir) if report_dir else "",
+                        details=stage_detail,
                     )
                     db.add(report)
 
-            # Also create a synthetic "full" report
-            all_pass = all(
-                v for v in stages.values() if isinstance(v, bool)
-            ) if stages else passed
+            # 总报告
+            try:
+                details_json = json.dumps(result)
+            except (TypeError, ValueError):
+                details_json = str(result)
+
             report = Report(
                 iteration_id=self.iteration.id,
-                type=ReportType.unit,  # "full" — reuse unit type as umbrella
-                passed=all_pass,
-                details=json.dumps(summary),
-                screenshots_path=str(report_dir) if report_dir else "",
+                type=ReportType.unit,
+                passed=passed,
+                details=details_json,
+                duration_sec=result.get("duration_sec", 0.0),
             )
             db.add(report)
             db.commit()
@@ -210,24 +132,3 @@ class CiRunner:
             return report.id
         finally:
             db.close()
-
-    def _cleanup(self):
-        """Remove the container if it still exists."""
-        if self.container_id:
-            try:
-                client = self._get_client()
-                c = client.containers.get(self.container_id)
-                c.remove(force=True)
-            except (NotFound, DockerException):
-                pass
-            self.container_id = None
-
-    def stop(self):
-        """Stop a running test."""
-        if self.container_id:
-            try:
-                client = self._get_client()
-                c = client.containers.get(self.container_id)
-                c.kill()
-            except (NotFound, DockerException):
-                pass
