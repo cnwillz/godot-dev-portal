@@ -124,6 +124,34 @@
       </div>
       {% endif %}
 
+      <!-- Run Tests (active iteration only) -->
+      {% if iter.status.value == 'active' %}
+      <div class="mt-3 pt-3 border-t border-dark-500">
+        <button
+          onclick="runTests({{ project.id }}, {{ iter.id }})"
+          class="bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded text-xs transition"
+        >▶ Run Tests</button>
+        <div id="test-output-{{ iter.id }}" class="mt-2 hidden">
+          <pre id="test-logs-{{ iter.id }}" class="text-xs text-green-300 bg-dark-900 rounded p-2 max-h-48 overflow-auto font-mono"></pre>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Reports list -->
+      {% if iter.reports %}
+      <div class="mt-2 space-y-1">
+        {% for r in iter.reports %}
+        <a href="/projects/{{ project.id }}/iterations/{{ iter.id }}/reports/{{ r.id }}"
+           class="flex items-center justify-between text-xs bg-dark-800 rounded px-2 py-1 hover:bg-dark-600 transition">
+          <span>{{ r.type.value }} · {{ r.created_at.strftime('%H:%M') }}</span>
+          <span class="{% if r.passed %}text-green-400{% else %}text-red-400{% endif %}">
+            {{ '✅ PASS' if r.passed else '❌ FAIL' }}
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <!-- Add task form -->
       <form method="post" action="/projects/{{ project.id }}/iterations/{{ iter.id }}/tasks/new" class="mt-2 flex gap-2">
         <input type="text" name="title" placeholder="New task..." required

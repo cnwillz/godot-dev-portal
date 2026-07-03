@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Report — {{ iteration.name }} — Godot Dev Portal{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="/projects/{{ project.id }}" class="text-dark-400 hover:text-dark-200 text-sm">
+    ← Back to {{ project.name }}
+  </a>
+</div>
+
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h1 class="text-xl font-bold">Test Report</h1>
+      <p class="text-dark-400 text-sm">{{ iteration.name }} · {{ report.type.value }} · {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+    <span class="text-lg px-3 py-1 rounded {% if report.passed %}bg-green-800 text-green-200{% else %}bg-red-800 text-red-200{% endif %}">
+      {{ '✅ PASS' if report.passed else '❌ FAIL' }}
+    </span>
+  </div>
+
+  {% if report.duration_sec %}
+  <p class="text-dark-400 text-xs">⏱ {{ '%.1f'|format(report.duration_sec) }}s</p>
+  {% endif %}
+</div>
+
+<!-- Stage results -->
+{% if details.stages %}
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-4">
+  <h2 class="text-sm font-semibold text-dark-300 uppercase mb-3">Stages</h2>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    {% for stage_name, stage_pass in details.stages.items() %}
+    <div class="bg-dark-700 rounded p-3 text-center">
+      <div class="text-2xl mb-1">{{ '✅' if stage_pass else '❌' }}</div>
+      <div class="text-xs text-dark-300">{{ stage_name }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Screenshots -->
+{% if screenshots %}
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-4">
+  <h2 class="text-sm font-semibold text-dark-300 uppercase mb-3">Screenshots</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for ss in screenshots %}
+    <div>
+      <img src="/static/screenshots/{{ ss.split('/')[-1] }}" alt="Screenshot"
+           class="w-full rounded border border-dark-500"
+           onerror="this.style.display='none'">
+      <p class="text-xs text-dark-400 mt-1">{{ ss.split('/')[-1] }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Raw details -->
+{% if details %}
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-4">
+  <h2 class="text-sm font-semibold text-dark-300 uppercase mb-3">Details</h2>
+  <pre class="text-xs text-dark-300 overflow-auto max-h-96 bg-dark-900 rounded p-3">{{ details | tojson(indent=2) }}</pre>
+</div>
+{% endif %}
+
+{% endblock %}

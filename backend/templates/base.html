@@ -37,5 +37,39 @@
 
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
   <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+  <script>
+    function runTests(projectId, iterationId) {
+      const outputEl = document.getElementById('test-output-' + iterationId);
+      const logsEl = document.getElementById('test-logs-' + iterationId);
+      outputEl.classList.remove('hidden');
+      logsEl.textContent = '🔄 Starting test run...\n';
+
+      const evtSource = new EventSource(`/projects/${projectId}/iterations/${iterationId}/test-stream`);
+      evtSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'log') {
+          logsEl.textContent += data.line + '\n';
+          logsEl.scrollTop = logsEl.scrollHeight;
+        } else if (data.type === 'complete') {
+          logsEl.textContent += '\n═══════════════════════\n';
+          logsEl.textContent += data.passed ? '✅ ALL TESTS PASSED\n' : '❌ TESTS FAILED\n';
+          logsEl.textContent += `Exit code: ${data.exit_code}\n`;
+          if (data.report_id) {
+            logsEl.textContent += `Report #${data.report_id}\n`;
+          }
+          evtSource.close();
+          // Reload page to show new report after 2s
+          setTimeout(() => window.location.reload(), 2000);
+        } else if (data.type === 'error') {
+          logsEl.textContent += '❌ ERROR: ' + data.message + '\n';
+          evtSource.close();
+        }
+      };
+      evtSource.onerror = () => {
+        logsEl.textContent += '⚠️ Connection lost\n';
+        evtSource.close();
+      };
+    }
+  </script>
 </body>
 </html>

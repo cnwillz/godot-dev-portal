@@ -29,9 +29,11 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # ── Register routers ──────────────────────────────────────────────────────
 from routers.projects import router as projects_router
 from routers.iterations import router as iterations_router
+from routers.reports import router as reports_router
 
 app.include_router(projects_router)
 app.include_router(iterations_router)
+app.include_router(reports_router)
 
 
 # ── Root redirect ─────────────────────────────────────────────────────────
@@ -52,6 +54,8 @@ def render_template(name: str, context: dict, request: Request):
 # Inject render_template into router modules so they can use it
 import routers.projects as rp
 import routers.iterations as ri
+import routers.reports as rr
 
 rp.render_template = render_template
 ri.render_template = render_template
+rr.render_template = render_template
