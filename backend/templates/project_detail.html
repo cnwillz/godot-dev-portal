@@ -18,6 +18,7 @@
     </div>
   </div>
   <div class="flex gap-2">
+    <a href="/projects/{{ project.id }}/preview" class="bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded text-sm transition">▶ Preview</a>
     <a href="/projects/{{ project.id }}/edit" class="bg-dark-600 hover:bg-dark-500 px-3 py-1.5 rounded text-sm transition">Edit</a>
     <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Delete this project?')">
       <button class="bg-red-800 hover:bg-red-700 px-3 py-1.5 rounded text-sm transition">Delete</button>

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Preview — {{ project.name }} — Godot Dev Portal{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="/projects/{{ project.id }}" class="text-dark-400 hover:text-dark-200 text-sm">
+    ← Back to {{ project.name }}
+  </a>
+</div>
+
+<h1 class="text-2xl font-bold mb-4">🎮 Game Preview: {{ project.name }}</h1>
+
+<div class="bg-dark-800 border border-dark-600 rounded-lg p-5 mb-4">
+  {% if preview.status == "running" %}
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="inline-block w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+        <span class="text-green-400 font-medium">Preview Running</span>
+      </div>
+      <form method="post" action="/projects/{{ project.id }}/preview/stop"
+            hx-post="/projects/{{ project.id }}/preview/stop"
+            hx-target="body"
+            hx-push-url="false"
+            class="inline">
+        <button class="bg-red-800 hover:bg-red-700 px-3 py-1 rounded text-sm transition">Stop Preview</button>
+      </form>
+    </div>
+
+    <div class="bg-dark-900 rounded overflow-hidden border border-dark-500" style="height: 520px;">
+      <iframe src="{{ preview.url }}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>
+    </div>
+
+    <p class="text-dark-400 text-xs mt-2">
+      Connected to port {{ preview.novnc_port }} (VNC: {{ preview.vnc_port }})
+    </p>
+
+  {% elif preview.status == "starting" %}
+    <div class="text-center py-12">
+      <div class="animate-pulse text-4xl mb-3">⏳</div>
+      <p class="text-dark-300">Preview starting...</p>
+      <p class="text-dark-400 text-sm mt-1">Waiting for noVNC to become ready</p>
+      <button onclick="setTimeout(() => window.location.reload(), 3000)" class="mt-4 bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded text-sm">
+        Refresh
+      </button>
+    </div>
+
+  {% else %}
+    <div class="text-center py-12">
+      <div class="text-4xl mb-3">🎮</div>
+      <p class="text-dark-300 mb-4">Preview is not running</p>
+      <form method="post" action="/projects/{{ project.id }}/preview/start">
+        <button class="bg-purple-600 hover:bg-purple-500 px-5 py-2 rounded text-base transition">
+          ▶ Start Preview
+        </button>
+      </form>
+      <p class="text-dark-400 text-xs mt-3">
+        Starts a Docker container with Godot + noVNC.
+        Game runs in browser via VNC streaming.
+      </p>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}
